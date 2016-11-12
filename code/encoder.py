@@ -1,23 +1,20 @@
 import tensorflow as tf
 
-def create(model, config):
+def create(embedder, config, scope = 'encoder'):
 	dim_v, dim_i, dim_d, dim_t, dim_b = config.getint('vocab'), config.getint('wvec'), config.getint('depth'), config.getint('steps'), config.getint('batch')
 	lrate_ms, dstep_ms, drate_ms, optim_ms = config.getfloat('lrate'), config.getint('dstep'), config.getfloat('drate'), getattr(tf.train, config.get('optim'))
+	model = dict()
 
-	with tf.name_scope('embedding'):
-		model['We'] = tf.Variable(tf.truncated_normal([dim_v, dim_i], stddev = 1.0 / dim_i), name = 'We')
-		model['Be'] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'Be')
-
-	with tf.name_scope('encoder'):
+	with tf.name_scope(scope):
 		with tf.name_scope('input'):
 			for ii in xrange(dim_t):
 				model['exi_%i' %ii] = tf.placeholder(tf.int32, [dim_b], name = 'exi_%i' %ii)
-				model['ex_%i' %ii] = tf.add(tf.nn.embedding_lookup(model['We'], model['exi_%i' %ii]), model['Be'], name = 'ex_%i' %ii)
+				model['ex_%i' %ii] = tf.add(tf.nn.embedding_lookup(embedder['We'], model['exi_%i' %ii]), embedder['Be'], name = 'ex_%i' %ii)
 
 		with tf.name_scope('label'):
 			for ii in xrange(dim_t):
 				model['eyi_%i' %ii] = tf.placeholder(tf.int32, [dim_b], name = 'eyi_%i' %ii)
-				model['ey_%i' %ii] = tf.add(tf.nn.embedding_lookup(model['We'], model['eyi_%i' %ii]), model['Be'], name = 'ey_%i' %ii)
+				model['ey_%i' %ii] = tf.add(tf.nn.embedding_lookup(embedder['We'], model['eyi_%i' %ii]), embedder['Be'], name = 'ey_%i' %ii)
 
 		for i in xrange(dim_d):
 			with tf.name_scope('input_%i' %i):

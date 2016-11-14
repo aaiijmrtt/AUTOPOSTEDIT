@@ -1,17 +1,18 @@
 import tensorflow as tf
 
-def create(model, config):
-	dim_v, dim_i, dim_d, dim_t, dim_b, dim_p = config.getint('vocab'), config.getint('wvec'), config.getint('depth'), config.getint('steps'), config.getint('batch'), config.getint('predictions')
+def create(embedder, encoder1, encoder2, combiner, config, scope = 'decoder'):
+	dim_v, dim_i, dim_d, dim__d_, dim_t, dim_b, dim_p = config.getint('vocab'), config.getint('wvec'), config.getint('depth'), config.getint('_depth_'), config.getint('steps'), config.getint('batch'), config.getint('predictions')
 	biencoder, lrate_ms, dstep_ms, drate_ms, optim_ms = config.getboolean('biencoder'), config.getfloat('lrate'), config.getint('dstep'), config.getfloat('drate'), getattr(tf.train, config.get('optim'))
+	model = dict()
 
-	with tf.name_scope('decoder'):
+	with tf.name_scope(scope):
 		with tf.name_scope('input'):
-			model['dh_%i_%i' %(dim_d - 1, -1)] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dh_%i_%i' %(dim_d -1, -1)) # consider starting with all zeros
+			model['dh_%i_%i' %(dim_d - 1, -1)] = combiner['cy_%i' %(dim__d_ - 1)]
 
 		with tf.name_scope('label'):
 			for ii in xrange(dim_t):
 				model['dyi_%i' %ii] = tf.placeholder(tf.int32, [dim_b], name = 'dyi_%i' %ii)
-				model['dy_%i' %ii] = tf.add(tf.nn.embedding_lookup(model['We'], model['dyi_%i' %ii]), model['Be'], name = 'dy_%i' %ii)
+				model['dy_%i' %ii] = tf.add(tf.nn.embedding_lookup(embedder['We'], model['dyi_%i' %ii]), embedder['Be'], name = 'dy_%i' %ii)
 
 		for i in xrange(dim_d):
 			with tf.name_scope('inputgate_%i' %i):
@@ -30,18 +31,19 @@ def create(model, config):
 				model['dWc_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWc_%i' %i)
 				model['dBc_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dBc_%i' %i)
 
-			if biencoder:
-				with tf.name_scope('transferstate_%i' %i):
-					model['dWt_%i' %i] = tf.Variable(tf.truncated_normal([2 * dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWt_%i' %i)
-					model['dBt_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dBt_%i' %i)
+			with tf.name_scope('transferstate_%i' %i):
+				factor = 4 if biencoder else 2
+				model['dWt_%i' %i] = tf.Variable(tf.truncated_normal([factor * dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWt_%i' %i)
+				model['dBt_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dBt_%i' %i)
 
 			with tf.name_scope('hidden_%i' %i):
 				model['dWz_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWz_%i' %i)
 				model['dBz_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dBz_%i' %i)
 
-			for ii in xrange(dim_t):
-				with tf.name_scope('transfer_%i_%i' %(i, ii)):
-					model['ect_%i_%i' %(i, ii)] = model['ec_%i_%i' %(i, ii)] if not biencoder else tf.add(tf.matmul(model['ec_%i_%i' %(i, ii)], model['dWt_%i' %i]), model['dBt_%i' %i], 'ect_%i_%i' %(i, ii))
+			with tf.name_scope('transfer_%i_%i' %(i, dim_t - 1)):
+				model['ec_%i_%i' %(i, dim_t - 1)] = tf.concat(1, [encoder1['ec_%i_%i' %(i, dim_t - 1)], encoder2['ec_%i_%i' %(i, dim_t - 1)]], name = 'ec_%i_%i' %(i, dim_t - 1))
+				model['ect_%i_%i' %(i, dim_t - 1)] = tf.add(tf.matmul(model['ec_%i_%i' %(i, dim_t - 1)], model['dWt_%i' %i]), model['dBt_%i' %i], 'ect_%i_%i' %(i, dim_t - 1))
+
 
 		for ii in xrange(dim_t):
 			for i in xrange(dim_d):
@@ -79,7 +81,7 @@ def create(model, config):
 
 		with tf.name_scope('predict'):
 			for ii in xrange(dim_t):
-				model['dp_%i' %ii] = tf.nn.top_k(tf.matmul(model['dh_%i' %ii], model['We'], transpose_b = True), dim_p, name = 'dp_%i' %ii)
+				model['dp_%i' %ii] = tf.nn.top_k(tf.matmul(model['dh_%i' %ii], embedder['We'], transpose_b = True), dim_p, name = 'dp_%i' %ii)
 
 	model['gsdms'] = tf.Variable(0, trainable = False, name = 'gsdms')
 	model['lrdms'] = tf.train.exponential_decay(lrate_ms, model['gsdms'], dstep_ms, drate_ms, staircase = False, name = 'lrdms')

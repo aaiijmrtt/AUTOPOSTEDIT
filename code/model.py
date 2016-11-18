@@ -1,5 +1,5 @@
-import sys, configparser
-import encoder, bicoder, decoder, atcoder
+import sys, configparser, datetime
+import embedder, encoder, bicoder, combiner, decoder, atcoder
 import tensorflow as tf
 
 def prepad(unpadded, pad, size):
@@ -12,35 +12,37 @@ def postpad(unpadded, pad, size):
 		return unpadded
 	return unpadded + [pad] * (size - len(unpadded))
 
-def feed(model, config, filename):
+def feed(encoder1, encoder2, decoder, config, filename):
 	batch, length = config.getint('global', 'batchsize'), config.getint('global', 'timesize')
-	prelist, postlist = list(), list()
+	inilist, prelist, postlist = list(), list(), list()
 	for line in open(filename):
-		preedit, postedit = line.split('\t')
-		preedit, postedit = [int(pre) for pre in preedit.split()], [int(post) for post in postedit.split()]
+		iniedit, preedit, postedit = line.split('\t')
+		iniedit, preedit, postedit = [int(ini) for ini in iniedit.split()], [int(pre) for pre in preedit.split()], [int(post) for post in postedit.split()]
+		inilist.append(prepad(iniedit, 0, length))
 		prelist.append(prepad(preedit, 0, length))
 		postlist.append(postpad(postedit, 0, length))
 		if len(prelist) == batch:
 			feeddict = dict()
-			feeddict.update({model['exi_%i' %i]: [prelist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
-			feeddict.update({model['dyi_%i' %i]: [postlist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
+			feeddict.update({encoder1['exi_%i' %i]: [inilist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
+			feeddict.update({encoder2['exi_%i' %i]: [prelist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
+			feeddict.update({decoder['dyi_%i' %i]: [postlist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
 			yield feeddict
-			prelist, postlist = list(), list()
+			inilist, prelist, postlist = list(), list(), list()
 
-def run(model, config, session, summary, filename, train):
+def run(encoder1, encoder2, decoder, config, session, summary, filename, train):
 	iters, freq, time, total = config.getint('global', 'iterations') if train else 1, config.getint('global', 'frequency'), config.getint('global', 'timesize'), 0.
 	for i in xrange(iters):
-		for ii, feeddict in enumerate(feed(model, config, filename)):
+		for ii, feeddict in enumerate(feed(encoder1, encoder2, decoder, config, filename)):
 			if train:
-				val, t = session.run([model['dms'], model['tdms']], feed_dict = feeddict)
+				val, t = session.run([decoder['dms'], decoder['tdms']], feed_dict = feeddict)
 				total += val
 				if (ii + 1) % freq == 0:
-					summ = session.run(model['sdms'], feed_dict = feeddict)
-					summary.add_summary(summ, model['gsdms'].eval())
+					summ = session.run(decoder['sdms'], feed_dict = feeddict)
+					summary.add_summary(summ, decoder['gsdms'].eval())
 					print datetime.datetime.now(), i, ii, total
 			else:
-				val = session.run([model['dp_%i' %iii] for iii in xrange(time)], feed_dict = feeddict)
-				exps, outs = [feeddict[model['dyi_%i' %iii]] for iii in xrange(time)], [x[1] for x in val]
+				val = session.run([decoder['dp_%i' %iii] for iii in xrange(time)], feed_dict = feeddict)
+				exps, outs = [feeddict[decoder['dyi_%i' %iii]] for iii in xrange(time)], [x[1] for x in val]
 				for bexp, bout in zip(exps, outs):
 					for exp, out in zip(bexp, bout):
 						if exp == 0: continue
@@ -52,17 +54,22 @@ if __name__ == '__main__':
 	config = configparser.ConfigParser(interpolation = configparser.ExtendedInterpolation())
 	config.read(sys.argv[1])
 
-	model = dict()
-#	model = encoder.create(model, config['encoder'])
-	model = bicoder.create(model, config['bicoder'])
-#	model = decoder.create(model, config['decoder'])
-	model = atcoder.create(model, config['atcoder'])
+	embedder = embedder.create(config['embedder'])
+#	encoder1 = encoder.create(embedder, config['encoder'])
+#	encoder2 = encoder.create(embedder, config['encoder'])
+	encoder1 = bicoder.create(embedder, config['bicoder'])
+	encoder2 = bicoder.create(embedder, config['bicoder'])
+	combiner = combiner.create(encoder1, encoder2, config['thinker'])
+#	decoder1 = decoder.create(embedder, encoder1, encoder2, combiner, config['decoder'])
+#	decoder2 = decoder.create(embedder, encoder1, encoder2, combiner, config['decoder'])
+	decoder1 = atcoder.create(embedder, encoder1, encoder2, combiner, config['atcoder'])
+	decoder2 = atcoder.create(embedder, encoder1, encoder2, combiner, config['atcoder'])
 
 	with tf.Session() as sess:
 		sess.run(tf.initialize_all_variables())
 		summary = tf.train.SummaryWriter(config.get('global', 'logs'), sess.graph)
 
-		print datetime.datetime.now(), run(model, config, sess, summary, sys.argv[2], True)
-		print datetime.datetime.now(), run(model, config, sess, summary, sys.argv[3], False)
+		print datetime.datetime.now(), run(encoder1, encoder2, decoder, config, sess, summary, sys.argv[2], True)
+		print datetime.datetime.now(), run(encoder1, encoder2, decoder, config, sess, summary, sys.argv[3], False)
 
 		tf.train.Saver().save(sess, config.get('global', 'path'))

@@ -39,7 +39,7 @@ def run(encoder1, encoder2, decoder, config, session, summary, filename, train):
 				if (ii + 1) % freq == 0:
 					summ = session.run(decoder['sdms'], feed_dict = feeddict)
 					summary.add_summary(summ, decoder['gsdms'].eval())
-					print datetime.datetime.now(), i, ii, total
+					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss', total
 			else:
 				val = session.run([decoder['dp_%i' %iii] for iii in xrange(time)], feed_dict = feeddict)
 				exps, outs = [feeddict[decoder['dyi_%i' %iii]] for iii in xrange(time)], [x[1] for x in val]
@@ -54,6 +54,7 @@ if __name__ == '__main__':
 	config = configparser.ConfigParser(interpolation = configparser.ExtendedInterpolation())
 	config.read(sys.argv[1])
 
+	print datetime.datetime.now(), 'creating model'
 	embedder = embedder.create(config['embedder'])
 #	encoder1 = encoder.create(embedder, config['encoder'])
 #	encoder2 = encoder.create(embedder, config['encoder'])
@@ -69,7 +70,9 @@ if __name__ == '__main__':
 		sess.run(tf.initialize_all_variables())
 		summary = tf.train.SummaryWriter(config.get('global', 'logs'), sess.graph)
 
-		print datetime.datetime.now(), run(encoder1, encoder2, decoder, config, sess, summary, sys.argv[2], True)
-		print datetime.datetime.now(), run(encoder1, encoder2, decoder, config, sess, summary, sys.argv[3], False)
+		print datetime.datetime.now(), 'training model'
+		print datetime.datetime.now(), 'training loss', run(encoder1, encoder2, decoder, config, sess, summary, sys.argv[2], True)
+		print datetime.datetime.now(), 'testing model'
+		print datetime.datetime.now(), 'testing accuracy', run(encoder1, encoder2, decoder, config, sess, summary, sys.argv[3], False)
 
 		tf.train.Saver().save(sess, config.get('global', 'path'))

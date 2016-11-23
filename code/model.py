@@ -61,18 +61,16 @@ if __name__ == '__main__':
 	encoder1 = bicoder.create(embedder, config['bicoder'])
 	encoder2 = bicoder.create(embedder, config['bicoder'])
 	combiner = combiner.create(encoder1, encoder2, config['thinker'])
-#	decoder1 = decoder.create(embedder, encoder1, encoder2, combiner, config['decoder'])
-#	decoder2 = decoder.create(embedder, encoder1, encoder2, combiner, config['decoder'])
-	decoder1 = atcoder.create(embedder, encoder1, encoder2, combiner, config['atcoder'])
-	decoder2 = atcoder.create(embedder, encoder1, encoder2, combiner, config['atcoder'])
+#	decoder_ = decoder.create(embedder, encoder1, encoder2, combiner, config['decoder'])
+	decoder_ = atcoder.create(embedder, encoder1, encoder2, combiner, config['atcoder'])
 
 	with tf.Session() as sess:
 		sess.run(tf.initialize_all_variables())
 		summary = tf.train.SummaryWriter(config.get('global', 'logs'), sess.graph)
 
 		print datetime.datetime.now(), 'training model'
-		print datetime.datetime.now(), 'training loss', run(encoder1, encoder2, decoder, config, sess, summary, sys.argv[2], True)
+		print datetime.datetime.now(), 'training loss', run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[2], True)
 		print datetime.datetime.now(), 'testing model'
-		print datetime.datetime.now(), 'testing accuracy', run(encoder1, encoder2, decoder, config, sess, summary, sys.argv[3], False)
+		print datetime.datetime.now(), 'testing accuracy', run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[3], False)
 
 		tf.train.Saver().save(sess, config.get('global', 'path'))

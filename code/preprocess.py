@@ -67,6 +67,13 @@ def main():
 		
 	vocab = map(lambda x: x[0], sorted(vocab.items(), key = lambda x: x[1], reverse = True))
 	
+	# Writing map dict to disk
+	
+	with open('map-dict.txt', 'w') as fileout:
+		for key in vocab:
+			line = key + '\t' + vocab[key]
+			fileout.write(line)
+	
 	writetofile(os.path.join(args.dir, 'train/train.src'), 
 		    os.path.join(args.dir, 'mapped_train.src'), vocab)
 	writetofile(os.path.join(args.dir, 'train/train.mt'), 

@@ -43,6 +43,7 @@ def run(encoder1, encoder2, decoder, config, session, summary, filename, train):
 			else:
 				val = session.run([decoder['dp_%i' %iii] for iii in xrange(time)], feed_dict = feeddict)
 				exps, outs = [feeddict[decoder['dyi_%i' %iii]] for iii in xrange(time)], [x[1] for x in val]
+				print >> sys.stderr, outs
 				for bexp, bout in zip(exps, outs):
 					for exp, out in zip(bexp, bout):
 						if exp == 0: continue
@@ -66,11 +67,14 @@ if __name__ == '__main__':
 
 	with tf.Session() as sess:
 		sess.run(tf.initialize_all_variables())
+#		tf.train.Saver().restore(sess, config.get('global', 'path'))
 		summary = tf.train.SummaryWriter(config.get('global', 'logs'), sess.graph)
 
 		print datetime.datetime.now(), 'training model'
-		print datetime.datetime.now(), 'training loss', run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[2], True)
+		trainingloss = run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[2], True)
+		print datetime.datetime.now(), 'training loss', trainingloss
 		print datetime.datetime.now(), 'testing model'
-		print datetime.datetime.now(), 'testing accuracy', run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[3], False)
+		testingaccuracy = run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[3], False)
+		print datetime.datetime.now(), 'testing accuracy', testingaccuracy
 
 		tf.train.Saver().save(sess, config.get('global', 'path'))

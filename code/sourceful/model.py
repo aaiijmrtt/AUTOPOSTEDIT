@@ -1,6 +1,6 @@
 import sys, configparser, datetime
 import embedder, encoder, bicoder, combiner, decoder, atcoder
-import tensorflow as tf
+import tensorflow as tf, numpy as np
 
 def prepad(unpadded, pad, size):
 	if len(unpadded) == size:
@@ -30,20 +30,21 @@ def feed(encoder1, encoder2, decoder, config, filename):
 			inilist, prelist, postlist = list(), list(), list()
 
 def run(encoder1, encoder2, decoder, config, session, summary, filename, train):
-	iters, freq, time, total = config.getint('global', 'iterations') if train else 1, config.getint('global', 'frequency'), config.getint('global', 'timesize'), 0.
+	iters, freq, time, saves, total = config.getint('global', 'iterations') if train else 1, config.getint('global', 'frequency'), config.getint('global', 'timesize'), config.get('global', 'output'), 0.
 	for i in xrange(iters):
-		for ii, feeddict in enumerate(feed(encoder1, encoder2, decoder, config, filename)):
-			if train:
+		if train:
+			for ii, feeddict in enumerate(feed(encoder1, encoder2, decoder, config, filename)):
 				val, t = session.run([decoder['dms'], decoder['tdms']], feed_dict = feeddict)
 				total += val
 				if (ii + 1) % freq == 0:
 					summ = session.run(decoder['sdms'], feed_dict = feeddict)
 					summary.add_summary(summ, decoder['gsdms'].eval())
 					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss', total
-			else:
+		else:
+			for ii, feeddict in enumerate(feed(encoder1, encoder2, decoder, config, filename)):
 				val = session.run([decoder['dp_%i' %iii] for iii in xrange(time)], feed_dict = feeddict)
-				exps, outs = [feeddict[decoder['dyi_%i' %iii]] for iii in xrange(time)], [x[1] for x in val]
-				print >> sys.stderr, outs
+				exps, vals, outs = [feeddict[decoder['dyi_%i' %iii]] for iii in xrange(time)], [x[0] for x in val], [x[1] for x in val]
+				np.savez(open('%s/%i' %(saves, ii), 'w'), values = np.transpose(np.array(vals), [1, 0, 2]), outputs = np.transpose(np.array(outs), [1, 0, 2]))
 				for bexp, bout in zip(exps, outs):
 					for exp, out in zip(bexp, bout):
 						if exp == 0: continue
@@ -67,14 +68,14 @@ if __name__ == '__main__':
 
 	with tf.Session() as sess:
 		sess.run(tf.initialize_all_variables())
-#		tf.train.Saver().restore(sess, config.get('global', 'path'))
+#		tf.train.Saver().restore(sess, config.get('global', 'load'))
 		summary = tf.train.SummaryWriter(config.get('global', 'logs'), sess.graph)
 
 		print datetime.datetime.now(), 'training model'
 		trainingloss = run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[2], True)
 		print datetime.datetime.now(), 'training loss', trainingloss
+		print datetime.datetime.now(), 'saving model'
+		tf.train.Saver().save(sess, config.get('global', 'save'))
 		print datetime.datetime.now(), 'testing model'
 		testingaccuracy = run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[3], False)
 		print datetime.datetime.now(), 'testing accuracy', testingaccuracy
-
-		tf.train.Saver().save(sess, config.get('global', 'path'))

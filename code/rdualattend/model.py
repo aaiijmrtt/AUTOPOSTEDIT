@@ -1,5 +1,5 @@
 import sys, configparser, datetime
-import embedder, encoder, bicoder, combiner, decoder, atcoder, fatcoder
+import embedder, encoder, bicoder, combiner, decoder, atcoder, alcoder
 import tensorflow as tf, numpy as np
 
 def prepad(unpadded, pad, size):
@@ -82,7 +82,7 @@ def run(encoder1, encoder2, decoder, config, session, summary, filename, train):
 if __name__ == '__main__':
 	config = configparser.ConfigParser(interpolation = configparser.ExtendedInterpolation())
 	config.read(sys.argv[1])
-	
+
 	print datetime.datetime.now(), 'creating model'
 	embedder = embedder.create(config['embedder'])
 #	encoder1 = encoder.create(embedder, config['encoder'])
@@ -92,7 +92,7 @@ if __name__ == '__main__':
 	combiner = combiner.create(encoder1, encoder2, config['thinker'])
 #	decoder_ = decoder.create(embedder, encoder1, encoder2, combiner, config['decoder'])
 #	decoder_ = atcoder.create(embedder, encoder1, encoder2, combiner, config['atcoder'])
-	decoder_ = fatcoder.create(embedder, encoder1, encoder2, combiner, config['fatcoder'])
+	decoder_ = alcoder.create(embedder, encoder1, encoder2, combiner, config['alcoder'])
 
 	with tf.Session() as sess:
 		sess.run(tf.initialize_all_variables())
@@ -103,7 +103,7 @@ if __name__ == '__main__':
 		trainingloss = run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[2], True)
 		print datetime.datetime.now(), 'training loss', trainingloss
 		print datetime.datetime.now(), 'saving model'
-#		tf.train.Saver().save(sess, config.get('global', 'save'))
+		tf.train.Saver().save(sess, config.get('global', 'save'))
 		print datetime.datetime.now(), 'testing model'
 		testingaccuracy = run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[3], False)
 		print datetime.datetime.now(), 'testing accuracy', testingaccuracy

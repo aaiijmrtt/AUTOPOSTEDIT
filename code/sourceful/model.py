@@ -17,6 +17,7 @@ def feed(encoder1, encoder2, decoder, config, filename):
 	inilist, prelist, postlist, alignlist = list(), list(), list(), list()
 	for line in open(filename):
 		iniedit, preedit, postedit, alignment = line.split('\t')
+		lengths = [len(preedit.split()), len(postedit.split())]
 		if align:
 			completealign, calign = postpad(alignment.split(';'), '', length), list()
 			for i in xrange(length):
@@ -27,7 +28,7 @@ def feed(encoder1, encoder2, decoder, config, filename):
 					if not completealign[i][ii].strip(): continue
 					indexalign = [int(inalign) for inalign in completealign[i][ii].split(' ') if inalign]
 					for idx in indexalign:
-						calign[-1][ii * length + idx] = 1. / len(indexalign)
+						calign[-1][ii * length + idx + length - lengths[ii]] = 1. / len(indexalign)
 			alignlist.append(calign)
 		inilist.append(prepad([int(ini) for ini in iniedit.split()], 0, length))
 		prelist.append(prepad([int(pre) for pre in preedit.split()], 0, length))

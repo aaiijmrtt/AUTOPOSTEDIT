@@ -1,11 +1,11 @@
 import tensorflow as tf
 
-def create(model, config):
+def create(model, config, embedding = None):
 	dim_v, dim_i, dim_d, dim_t, dim_b = config.getint('vocab'), config.getint('wvec'), config.getint('depth'), config.getint('steps'), config.getint('batch')
 	lrate_ms, dstep_ms, drate_ms, optim_ms = config.getfloat('lrate'), config.getint('dstep'), config.getfloat('drate'), getattr(tf.train, config.get('optim'))
 
 	with tf.name_scope('embedding'):
-		model['We'] = tf.Variable(tf.truncated_normal([dim_v, dim_i], stddev = 1.0 / dim_i), name = 'We')
+		model['We'] = tf.Variable(tf.truncated_normal([dim_v, dim_i], stddev = 1.0 / dim_i), name = 'We') if embedding is None else tf.Variable(embedding, name = 'We')
 		model['Be'] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'Be')
 
 	with tf.name_scope('bicoder'):

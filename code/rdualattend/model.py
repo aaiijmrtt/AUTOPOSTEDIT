@@ -17,7 +17,7 @@ def feed(encoder1, encoder2, decoder, config, filename):
 	inilist, prelist, postlist, alignlist = list(), list(), list(), list()
 	for line in open(filename):
 		iniedit, preedit, postedit, alignment = line.split('\t')
-		lengths = [len(preedit.split()), len(postedit.split())]
+		lengths = [len(iniedit.split()), len(preedit.split())]
 		if align:
 			completealign, calign = postpad(alignment.split(';'), '', length), list()
 			for i in xrange(length):
@@ -75,17 +75,16 @@ def run(encoder1, encoder2, decoder, config, session, summary, filename, train):
 						if exp == 0: continue
 						if exp in out: total += 1
 
-	if train and align:
-		return totaldmss, totaldmsa
-	else:
-		return total
+	if train and align: return totaldmss, totaldmsa
+	else: return total
 
 if __name__ == '__main__':
 	config = configparser.ConfigParser(interpolation = configparser.ExtendedInterpolation())
 	config.read(sys.argv[1])
 
 	print datetime.datetime.now(), 'creating model'
-	embedder = embedder.create(config['embedder'])
+	embedding = np.loadtxt('%s/%s' %(config.get('global', 'data'), 'model')).astype(np.float32)
+	embedder = embedder.create(config['embedder'], embedding = embedding)
 #	encoder1 = encoder.create(embedder, config['encoder'])
 #	encoder2 = encoder.create(embedder, config['encoder'])
 	encoder1 = bicoder.create(embedder, config['bicoder'])

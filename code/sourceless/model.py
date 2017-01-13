@@ -80,12 +80,12 @@ if __name__ == '__main__':
 	config.read(sys.argv[1])
 
 	print datetime.datetime.now(), 'creating model'
-	embedding, model = np.loadtxt('%s/%s' %(config.get('global', 'data'), 'model')).astype(np.float32), dict()
-#	model = encoder.create(model, config['encoder'], embedding)
-	model = bicoder.create(model, config['bicoder'], embedding)
-#	model = decoder.create(model, config['decoder'])
-#	model = atcoder.create(model, config['atcoder'])
-	model = alcoder.create(model, config['alcoder'])
+	embedding, model, mode = np.loadtxt('%s/model' %config.get('global', 'data')).astype(np.float32), dict(), [int(sys.argv[2]) % 2, (int(sys.argv[2]) / 2) % 3]
+	if mode[0] == 0: model = encoder.create(model, config['encoder'], embedding)
+	if mode[0] == 1: model = bicoder.create(model, config['bicoder'], embedding)
+	if mode[1] == 0: model = decoder.create(model, config['decoder'])
+	if mode[1] == 1: model = atcoder.create(model, config['atcoder'])
+	if mode[1] == 2: model = alcoder.create(model, config['alcoder'])
 
 	with tf.Session() as sess:
 		sess.run(tf.initialize_all_variables())
@@ -93,10 +93,10 @@ if __name__ == '__main__':
 		summary = tf.train.SummaryWriter(config.get('global', 'logs'), sess.graph)
 
 		print datetime.datetime.now(), 'training model'
-		trainingloss = run(model, config, sess, summary, sys.argv[2], True)
+		trainingloss = run(model, config, sess, summary, '%s/train' %config.get('global', 'data'), True)
 		print datetime.datetime.now(), 'training loss', trainingloss
 		print datetime.datetime.now(), 'saving model'
 		tf.train.Saver().save(sess, config.get('global', 'save'))
 		print datetime.datetime.now(), 'testing model'
-		testingaccuracy = run(model, config, sess, summary, sys.argv[3], False)
+		testingaccuracy = run(model, config, sess, summary, '%s/dev' %config.get('global', 'data'), False)
 		print datetime.datetime.now(), 'testing accuracy', testingaccuracy

@@ -83,16 +83,14 @@ if __name__ == '__main__':
 	config.read(sys.argv[1])
 
 	print datetime.datetime.now(), 'creating model'
-	embedding = np.loadtxt('%s/%s' %(config.get('global', 'data'), 'model')).astype(np.float32)
+	embedding, mode = np.loadtxt('%s/model' %config.get('global', 'data')).astype(np.float32), [int(sys.argv[2]) % 2, (int(sys.argv[2]) / 2) % 3]
 	embedder = embedder.create(config['embedder'], embedding = embedding)
-#	encoder1 = encoder.create(embedder, config['encoder'])
-#	encoder2 = encoder.create(embedder, config['encoder'])
-	encoder1 = bicoder.create(embedder, config['bicoder'])
-	encoder2 = bicoder.create(embedder, config['bicoder'])
+	if mode[0] == 0: encoder1, encoder2 = encoder.create(embedder, config['encoder']), encoder.create(embedder, config['encoder'])
+	if mode[0] == 1: encoder1, encoder2 = bicoder.create(embedder, config['bicoder']), bicoder.create(embedder, config['bicoder'])
 	combiner = combiner.create(encoder1, encoder2, config['thinker'])
-#	decoder_ = decoder.create(embedder, encoder1, encoder2, combiner, config['decoder'])
-#	decoder_ = atcoder.create(embedder, encoder1, encoder2, combiner, config['atcoder'])
-	decoder_ = alcoder.create(embedder, encoder1, encoder2, combiner, config['alcoder'])
+	if mode[1] == 0: decoder_ = decoder.create(embedder, encoder1, encoder2, combiner, config['decoder'])
+	if mode[1] == 1: decoder_ = atcoder.create(embedder, encoder1, encoder2, combiner, config['atcoder'])
+	if mode[1] == 2: decoder_ = alcoder.create(embedder, encoder1, encoder2, combiner, config['alcoder'])
 
 	with tf.Session() as sess:
 		sess.run(tf.initialize_all_variables())
@@ -100,10 +98,10 @@ if __name__ == '__main__':
 		summary = tf.train.SummaryWriter(config.get('global', 'logs'), sess.graph)
 
 		print datetime.datetime.now(), 'training model'
-		trainingloss = run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[2], True)
+		trainingloss = run(encoder1, encoder2, decoder_, config, sess, summary, '%s/train' %config.get('global', 'data'), True)
 		print datetime.datetime.now(), 'training loss', trainingloss
 		print datetime.datetime.now(), 'saving model'
 		tf.train.Saver().save(sess, config.get('global', 'save'))
 		print datetime.datetime.now(), 'testing model'
-		testingaccuracy = run(encoder1, encoder2, decoder_, config, sess, summary, sys.argv[3], False)
+		testingaccuracy = run(encoder1, encoder2, decoder_, config, sess, summary, '%s/dev' %config.get('global', 'data'), False)
 		print datetime.datetime.now(), 'testing accuracy', testingaccuracy

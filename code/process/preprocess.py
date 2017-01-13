@@ -44,12 +44,9 @@ def readalignfile(file1, file2, lengths):
 	return alignments
 
 def readword2vec(filename, vocabulary = dict()):
-	counter = 0
 	with open(filename) as filein:
 		next(filein)
 		for line in filein:
-			counter += 1
-			if counter % 100000 == 0: print datetime.datetime.now(), counter
 			tokens = line.split(' ')
 			vocabulary[''.join(map(maptext, tokens[0].strip()))] = [float(dimension) for dimension in tokens[1: ]]
 	return vocabulary

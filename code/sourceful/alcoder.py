@@ -2,7 +2,7 @@ import tensorflow as tf
 
 def create(embedder, encoder1, encoder2, combiner, config, scope = 'atcoder'):
 	dim_v, dim_i, dim_d, dim__d_, dim_t, dim_b, dim_m, dim_p = config.getint('vocab'), config.getint('wvec'), config.getint('depth'), config.getint('_depth_'), config.getint('steps'), config.getint('batch'), config.getint('memory'), config.getint('predictions')
-	biencoder, lrate_ms, dstep_ms, drate_ms, optim_ms = config.getboolean('biencoder'), config.getfloat('lrate'), config.getint('dstep'), config.getfloat('drate'), getattr(tf.train, config.get('optim'))
+	biencoder, samp, lrate, dstep, drate, optim = config.getboolean('biencoder'), config.getint('samples'), config.getfloat('lrate'), config.getint('dstep'), config.getfloat('drate'), getattr(tf.train, config.get('optim'))
 	model = dict()
 
 	with tf.name_scope(scope):
@@ -100,20 +100,27 @@ def create(embedder, encoder1, encoder2, combiner, config, scope = 'atcoder'):
 
 		with tf.name_scope('meansquared'):
 			for ii in xrange(dim_t):
-				model['dmss_%i' %ii] = tf.select(tf.equal(model['dyi_%i' %ii], tf.zeros([dim_b], tf.int32)), tf.zeros([dim_b], tf.float32), tf.reduce_sum(tf.square(tf.sub(model['dy_%i' %ii], model['dh_%i' %ii])), [1]), name = 'dms_%i' %ii)
+				model['dmses_%i' %ii] = tf.select(tf.equal(model['dyi_%i' %ii], tf.zeros([dim_b], tf.int32)), tf.zeros([dim_b], tf.float32), tf.reduce_sum(tf.square(tf.sub(model['dy_%i' %ii], model['dh_%i' %ii])), [1]), name = 'dmses_%i' %ii)
 				for i in xrange(dim_d):
-					model['dmsa_%i_%i' %(i, ii)] = tf.select(tf.equal(model['dai_%i_%i' %(i, ii)], -tf.ones([2 * dim_m, dim_b], tf.float32)), tf.zeros([2 * dim_m, dim_b], tf.float32), tf.square(tf.sub(model['dai_%i_%i' %(i, ii)], model['dat_%i_%i' %(i, ii)])), name = 'dmsa_%i_%i' %(i, ii))
-			model['dmss'] = tf.reduce_sum(tf.add_n([model['dmss_%i' %ii] for ii in xrange(dim_t)]), name = 'dmss')
-			model['dmsa'] = tf.reduce_sum(tf.add_n([model['dmsa_%i_%i' %(i, ii)] for ii in xrange(dim_t) for i in xrange(dim_d)]), name = 'dmsa')
-			model['sdmss'] = tf.scalar_summary(model['dmss'].name, model['dmss'])
-			model['sdmsa'] = tf.scalar_summary(model['dmsa'].name, model['dmsa'])
+					model['dmsea_%i_%i' %(i, ii)] = tf.select(tf.equal(model['dai_%i_%i' %(i, ii)], -tf.ones([2 * dim_m, dim_b], tf.float32)), tf.zeros([2 * dim_m, dim_b], tf.float32), tf.square(tf.sub(model['dai_%i_%i' %(i, ii)], model['dat_%i_%i' %(i, ii)])), name = 'dmsea_%i_%i' %(i, ii))
+			model['dmses'] = tf.reduce_sum(tf.add_n([model['dmses_%i' %ii] for ii in xrange(dim_t)]), name = 'dmses')
+			model['dmsea'] = tf.reduce_sum(tf.add_n([model['dmsea_%i_%i' %(i, ii)] for ii in xrange(dim_t) for i in xrange(dim_d)]), name = 'dmsea')
+			model['sdmses'] = tf.scalar_summary(model['dmses'].name, model['dmses'])
+			model['sdmsea'] = tf.scalar_summary(model['dmsea'].name, model['dmsea'])
+
+		with tf.name_scope('negativeloglikelihood'):
+			for ii in xrange(dim_t):
+				model['dnlls_%i' %ii] = tf.select(tf.equal(model['dyi_%i' %ii], tf.zeros([dim_b], tf.int32)), tf.zeros([dim_b], tf.float32), tf.nn.sampled_softmax_loss(embedder['We'], tf.zeros([dim_v], tf.float32), model['dh_%i' %ii], tf.reshape(model['dyi_%i' %ii], [dim_b, 1]), samp, dim_v), name = 'dnlls_%i' %ii)
+			model['dnlls'] = tf.reduce_sum(tf.add_n([model['dnlls_%i' %ii] for ii in xrange(dim_t)]), name = 'dnlls')
+			model['sdnlls'] = tf.scalar_summary(model['dnlls'].name, model['dnlls'])
 
 		with tf.name_scope('predict'):
 			for ii in xrange(dim_t):
 				model['dp_%i' %ii] = tf.nn.top_k(tf.matmul(model['dh_%i' %ii], embedder['We'], transpose_b = True), dim_p, name = 'dp_%i' %ii)
 
-	model['gsdms'] = tf.Variable(0, trainable = False, name = 'gsdms')
-	model['lrdms'] = tf.train.exponential_decay(lrate_ms, model['gsdms'], dstep_ms, drate_ms, staircase = False, name = 'lrdms')
-	model['tdms'] = optim_ms(model['lrdms']).minimize(model['dmss'] + model['dmsa'], global_step = model['gsdms'], name = 'tdms')
+	model['gsd'] = tf.Variable(0, trainable = False, name = 'gsd')
+	model['lrd'] = tf.train.exponential_decay(lrate, model['gsd'], dstep, drate, staircase = False, name = 'lrd')
+	model['tdmses'] = optim(model['lrd']).minimize(model['dmses'] + model['dmsea'], global_step = model['gsd'], name = 'tdmses')
+	model['tdnlls'] = optim(model['lrd']).minimize(model['dnlls'] + model['dmsea'], global_step = model['gsd'], name = 'tdnlls')
 
 	return model

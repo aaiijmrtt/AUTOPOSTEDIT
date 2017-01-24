@@ -45,24 +45,29 @@ def feed(encoder1, encoder2, decoder, config, filename):
 
 def run(encoder1, encoder2, decoder, config, session, summary, filename, train):
 	iters, freq, time, saves, align, total, totaldmss, totaldmsa = config.getint('global', 'iterations') if train else 1, config.getint('global', 'frequency'), config.getint('global', 'timesize'), config.get('global', 'output'), config.getboolean('global', 'align'), 0., 0., 0.
+	if config.get('global', 'lfunc') == 'mse': ds, td, sds, gsd = decoder['dmses'], decoder['tdmses'], decoder['sdmses'], decoder['gsd']
+	if config.get('global', 'lfunc') == 'nll': ds, td, sds, gsd = decoder['dnlls'], decoder['tdnlls'], decoder['sdnlls'], decoder['gsd']
+	if config.get('global', 'lfunc') == 'mse' and align: da, sda = decoder['dmsea'], decoder['sdmsea']
+	if config.get('global', 'lfunc') == 'nll' and align: da, sda = decoder['dmsea'], decoder['sdmsea']
+
 	for i in xrange(iters):
 		if train:
 			for ii, feeddict in enumerate(feed(encoder1, encoder2, decoder, config, filename)):
 				if align:
-					valdmss, valdmsa, t = session.run([decoder['dmss'], decoder['dmsa'], decoder['tdms']], feed_dict = feeddict)
+					valdmss, valdmsa, t = session.run([ds, da, td], feed_dict = feeddict)
 					totaldmss += valdmss
 					totaldmsa += valdmsa
 					if (ii + 1) % freq == 0:
-						summs, summa = session.run([decoder['sdmss'], decoder['sdmsa']], feed_dict = feeddict)
-						summary.add_summary(summs, decoder['gsdms'].eval())
-						summary.add_summary(summa, decoder['gsdms'].eval())
+						summs, summa = session.run([sds, sda], feed_dict = feeddict)
+						summary.add_summary(summs, gsd.eval())
+						summary.add_summary(summa, gsd.eval())
 						print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', totaldmss, 'att', totaldmsa
 				else:
-					val, t = session.run([decoder['dms'], decoder['tdms']], feed_dict = feeddict)
+					val, t = session.run([ds, td], feed_dict = feeddict)
 					total += val
 					if (ii + 1) % freq == 0:
-						summ = session.run(decoder['sdms'], feed_dict = feeddict)
-						summary.add_summary(summ, decoder['gsdms'].eval())
+						summ = session.run(sds, feed_dict = feeddict)
+						summary.add_summary(summ, gsd.eval())
 						print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss', total
 		else:
 			for ii, feeddict in enumerate(feed(encoder1, encoder2, decoder, config, filename)):

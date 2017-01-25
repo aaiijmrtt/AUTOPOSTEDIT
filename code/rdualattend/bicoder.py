@@ -2,7 +2,7 @@ import tensorflow as tf
 
 def create(embedder, config, scope = 'bicoder'):
 	dim_v, dim_i, dim_d, dim_t, dim_b = config.getint('vocab'), config.getint('wvec'), config.getint('depth'), config.getint('steps'), config.getint('batch')
-	lrate_ms, dstep_ms, drate_ms, optim_ms = config.getfloat('lrate'), config.getint('dstep'), config.getfloat('drate'), getattr(tf.train, config.get('optim'))
+	samp, lrate, dstep, drate, optim = config.getint('samples'), config.getfloat('lrate'), config.getint('dstep'), config.getfloat('drate'), getattr(tf.train, config.get('optim'))
 	model = dict()
 
 	with tf.name_scope(scope):
@@ -76,12 +76,19 @@ def create(embedder, config, scope = 'bicoder'):
 
 		with tf.name_scope('meansquared'):
 			for ii in xrange(dim_t):
-				model['ems_%i' %ii] = tf.select(tf.equal(model['exi_%i' %ii], tf.zeros([dim_b], tf.int32)), tf.zeros([dim_b], tf.float32), tf.reduce_sum(tf.square(tf.sub(model['ey_%i' %ii], model['eh_%i' %ii])), [1]), name = 'ems_%i' %ii)
-			model['ems'] = tf.reduce_sum(tf.add_n([model['ems_%i' %ii] for ii in xrange(dim_t)]), name = 'ems')
-			model['sems'] = tf.scalar_summary(model['ems'].name, model['ems'])
+				model['emse_%i' %ii] = tf.select(tf.equal(model['exi_%i' %ii], tf.zeros([dim_b], tf.int32)), tf.zeros([dim_b], tf.float32), tf.reduce_sum(tf.square(tf.sub(model['ey_%i' %ii], model['eh_%i' %ii])), [1]), name = 'emse_%i' %ii)
+			model['emse'] = tf.reduce_sum(tf.add_n([model['emse_%i' %ii] for ii in xrange(dim_t)]), name = 'emse')
+			model['semse'] = tf.scalar_summary(model['emse'].name, model['emse'])
 
-	model['gsems'] = tf.Variable(0, trainable = False, name = 'gsems')
-	model['lrems'] = tf.train.exponential_decay(lrate_ms, model['gsems'], dstep_ms, drate_ms, staircase = False, name = 'lrems')
-	model['tems'] = optim_ms(model['lrems']).minimize(model['ems'], global_step = model['gsems'], name = 'tems')
+		with tf.name_scope('negativeloglikelihood'):
+			for ii in xrange(dim_t):
+				model['enll_%i' %ii] = tf.select(tf.equal(model['exi_%i' %ii], tf.zeros([dim_b], tf.int32)), tf.zeros([dim_b], tf.float32), tf.nn.sampled_softmax_loss(embedder['We'], tf.zeros([dim_v], tf.float32), model['eh_%i' %ii], tf.reshape(model['eyi_%i' %ii], [dim_b, 1]), samp, dim_v), name = 'enll_%i' %ii)
+			model['enll'] = tf.reduce_sum(tf.add_n([model['enll_%i' %ii] for ii in xrange(dim_t)]), name = 'enll')
+			model['senll'] = tf.scalar_summary(model['enll'].name, model['enll'])
+
+	model['gse'] = tf.Variable(0, trainable = False, name = 'gse')
+	model['lre'] = tf.train.exponential_decay(lrate, model['gse'], dstep, drate, staircase = False, name = 'lre')
+	model['temse'] = optim(model['lre']).minimize(model['emse'], global_step = model['gse'], name = 'temse')
+	model['tenll'] = optim(model['lre']).minimize(model['enll'], global_step = model['gse'], name = 'tenll')
 
 	return model

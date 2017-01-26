@@ -2,10 +2,10 @@ import tensorflow as tf
 
 def create(model, config, embedding = None):
 	dim_v, dim_i, dim_d, dim_t, dim_b = config.getint('vocab'), config.getint('wvec'), config.getint('depth'), config.getint('steps'), config.getint('batch')
-	samp, lrate, dstep, drate, optim = config.getint('samples'), config.getfloat('lrate'), config.getint('dstep'), config.getfloat('drate'), getattr(tf.train, config.get('optim'))
+	samp, lrate, dstep, drate, optim, rfact, reg = config.getint('samples'), config.getfloat('lrate'), config.getint('dstep'), config.getfloat('drate'), getattr(tf.train, config.get('optim')), config.getfloat('rfact'), getattr(tf.contrib.layers, config.get('reg'))
 
 	with tf.name_scope('embedding'):
-		model['We'] = tf.Variable(tf.truncated_normal([dim_v, dim_i], stddev = 1.0 / dim_i), name = 'We') if embedding is None else tf.Variable(embedding, name = 'We')
+		model['We'] = tf.Variable(tf.truncated_normal([dim_v, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'We') if embedding is None else tf.Variable(embedding, collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'We')
 		model['Be'] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'Be')
 
 	with tf.name_scope('bicoder'):
@@ -25,33 +25,33 @@ def create(model, config, embedding = None):
 					model['ex_%i_%i' %(i, ii)] = model['ex_%i' %ii] if i == 0 else model['eh_%i_%i' %(i - 1, ii)]
 
 			with tf.name_scope('inputgate_%i' %i):
-				model['eFWi_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'eFWi_%i' %i)
+				model['eFWi_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'eFWi_%i' %i)
 				model['eFBi_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'eFBi_%i' %i)
-				model['eBWi_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'eBWi_%i' %i)
+				model['eBWi_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'eBWi_%i' %i)
 				model['eBBi_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'eBBi_%i' %i)
 				for ii in xrange(dim_t):
 					model['eFi_%i_%i' %(i, ii)] = tf.nn.sigmoid(tf.add(tf.matmul(model['ex_%i_%i' %(i, ii)], model['eFWi_%i' %i]), model['eFBi_%i' %i]), name = 'eFi_%i_%i' %(i, ii))
 					model['eBi_%i_%i' %(i, ii)] = tf.nn.sigmoid(tf.add(tf.matmul(model['ex_%i_%i' %(i, ii)], model['eBWi_%i' %i]), model['eBBi_%i' %i]), name = 'eBi_%i_%i' %(i, ii))
 
 			with tf.name_scope('forgetgate_%i' %i):
-				model['eFWf_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'eFWf_%i' %i)
+				model['eFWf_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'eFWf_%i' %i)
 				model['eFBf_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'eFBf_%i' %i)
-				model['eBWf_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'eBWf_%i' %i)
+				model['eBWf_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'eBWf_%i' %i)
 				model['eBBf_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'eBBf_%i' %i)
 				for ii in xrange(dim_t):
 					model['eFf_%i_%i' %(i, ii)] = tf.nn.sigmoid(tf.add(tf.matmul(model['ex_%i_%i' %(i, ii)], model['eFWf_%i' %i]), model['eFBf_%i' %i]), name = 'eFf_%i_%i' %(i, ii))
 					model['eBf_%i_%i' %(i, ii)] = tf.nn.sigmoid(tf.add(tf.matmul(model['ex_%i_%i' %(i, ii)], model['eBWf_%i' %i]), model['eBBf_%i' %i]), name = 'eBf_%i_%i' %(i, ii))
 
 			with tf.name_scope('outputgate_%i' %i):
-				model['eWo_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'eWo_%i' %i)
+				model['eWo_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'eWo_%i' %i)
 				model['eBo_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'eBo_%i' %i)
 				for ii in xrange(dim_t):
 					model['eo_%i_%i' %(i, ii)] = tf.nn.sigmoid(tf.add(tf.matmul(model['ex_%i_%i' %(i, ii)], model['eWo_%i' %i]), model['eBo_%i' %i]), name = 'eo_%i_%i' %(i, ii))
 
 			with tf.name_scope('cellstate_%i' %i):
-				model['eFWc_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'eFWc_' + str(i))
+				model['eFWc_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'eFWc_' + str(i))
 				model['eFBc_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'eFBc_' + str(i))
-				model['eBWc_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'eBWc_' + str(i))
+				model['eBWc_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'eBWc_' + str(i))
 				model['eBBc_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'eBBc_' + str(i))
 				for ii in xrange(dim_t):
 					model['eFcc_%i_%i' %(i, ii)] = tf.Variable(tf.truncated_normal([dim_b, dim_i], stddev = 1.0 / dim_i), name = 'eFcc_%i_%i' %(i, ii)) if ii == 0 else model['eFc_%i_%i' %(i, ii - 1)] # consider starting with all zeros
@@ -63,7 +63,7 @@ def create(model, config, embedding = None):
 					model['ec_%i_%i' %(i, ii)] = tf.concat(1, [model['eFc_%i_%i' %(i, ii)], model['eBc_%i_%i' %(i, ii)]], 'ec_%i_%i' %(i, ii))
 
 			with tf.name_scope('hidden_%i' %i):
-				model['eWz_%i' %i] = tf.Variable(tf.truncated_normal([2 * dim_i, dim_i], stddev = 1.0 / dim_i), name = 'eFWz_%i' %i)
+				model['eWz_%i' %i] = tf.Variable(tf.truncated_normal([2 * dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'eFWz_%i' %i)
 				model['eBz_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'eFBz_%i' %i)
 				for ii in xrange(dim_t):
 					model['ez_%i_%i' %(i, ii)] = tf.add(tf.matmul(model['ec_%i_%i' %(i, ii)], model['eWz_%i' %i]), model['eBz_%i' %i], name = 'ez_%i_%i' %(i, ii))
@@ -91,7 +91,8 @@ def create(model, config, embedding = None):
 
 	model['gse'] = tf.Variable(0, trainable = False, name = 'gse')
 	model['lre'] = tf.train.exponential_decay(lrate, model['gse'], dstep, drate, staircase = False, name = 'lre')
-	model['temse'] = optim(model['lre']).minimize(model['emse'], global_step = model['gse'], name = 'temse')
-	model['tenll'] = optim(model['lre']).minimize(model['enll'], global_step = model['gse'], name = 'tenll')
+	model['reg'] = tf.contrib.layers.apply_regularization(reg(rfact), tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+	model['temse'] = optim(model['lre']).minimize(model['emse'] + model['reg'], global_step = model['gse'], name = 'temse')
+	model['tenll'] = optim(model['lre']).minimize(model['enll'] + model['reg'], global_step = model['gse'], name = 'tenll')
 
 	return model

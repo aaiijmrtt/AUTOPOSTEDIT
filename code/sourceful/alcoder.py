@@ -2,7 +2,7 @@ import tensorflow as tf
 
 def create(embedder, encoder1, encoder2, combiner, config, scope = 'atcoder'):
 	dim_v, dim_i, dim_d, dim__d_, dim_t, dim_b, dim_m, dim_p = config.getint('vocab'), config.getint('wvec'), config.getint('depth'), config.getint('_depth_'), config.getint('steps'), config.getint('batch'), config.getint('memory'), config.getint('predictions')
-	biencoder, samp, lrate, dstep, drate, optim = config.getboolean('biencoder'), config.getint('samples'), config.getfloat('lrate'), config.getint('dstep'), config.getfloat('drate'), getattr(tf.train, config.get('optim'))
+	biencoder, samp, lrate, dstep, drate, optim, rfact, reg = config.getboolean('biencoder'), config.getint('samples'), config.getfloat('lrate'), config.getint('dstep'), config.getfloat('drate'), getattr(tf.train, config.get('optim')), config.getfloat('rfact'), getattr(tf.contrib.layers, config.get('reg'))
 	model = dict()
 
 	with tf.name_scope(scope):
@@ -22,35 +22,35 @@ def create(embedder, encoder1, encoder2, combiner, config, scope = 'atcoder'):
 
 		for i in xrange(dim_d):
 			with tf.name_scope('inputgate_%i' %i):
-				model['dWi_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWi_%i' %i)
+				model['dWi_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'dWi_%i' %i)
 				model['dBi_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dBi_%i' %i)
 
 			with tf.name_scope('forgetgate_%i' %i):
-				model['dWf_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWf_%i' %i)
+				model['dWf_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'dWf_%i' %i)
 				model['dBf_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dBf_%i' %i)
 
 			with tf.name_scope('outputgate_%i' %i):
-				model['dWo_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWo_%i' %i)
+				model['dWo_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'dWo_%i' %i)
 				model['dBo_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dBo_%i' %i)
 
 			with tf.name_scope('cellstate_%i' %i):
-				model['dWc_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWc_%i' %i)
+				model['dWc_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'dWc_%i' %i)
 				model['dBc_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dBc_%i' %i)
 
 			with tf.name_scope('transferstate_%i' %i):
 				factor = 4 if biencoder else 2
-				model['dWt_%i' %i] = tf.Variable(tf.truncated_normal([factor * dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWt_%i' %i)
+				model['dWt_%i' %i] = tf.Variable(tf.truncated_normal([factor * dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'dWt_%i' %i)
 				model['dBt_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dBt_%i' %i)
-				model['dWm_%i' %i] = tf.Variable(tf.truncated_normal([factor / 2 * dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWm_%i' %i)
+				model['dWm_%i' %i] = tf.Variable(tf.truncated_normal([factor / 2 * dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'dWm_%i' %i)
 				model['dBm_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dBm_%i' %i)
 
 			with tf.name_scope('attention_%i' %i):
-				model['dWa_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWa_%i' %i)
+				model['dWa_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'dWa_%i' %i)
 				model['dBa_%i' %i] = tf.Variable(tf.truncated_normal([2 * dim_m, 1], stddev = 1.0 / dim_t), name = 'dBa_%i' %i)
 
 			with tf.name_scope('hidden_%i' %i):
-				model['dWx_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWx_%i' %i)
-				model['dWz_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), name = 'dWz_%i' %i)
+				model['dWx_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'dWx_%i' %i)
+				model['dWz_%i' %i] = tf.Variable(tf.truncated_normal([dim_i, dim_i], stddev = 1.0 / dim_i), collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'dWz_%i' %i)
 				model['dBz_%i' %i] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'dBz_%i' %i)
 
 			with tf.name_scope('transfer_%i_%i' %(i, dim_t - 1)):
@@ -120,7 +120,8 @@ def create(embedder, encoder1, encoder2, combiner, config, scope = 'atcoder'):
 
 	model['gsd'] = tf.Variable(0, trainable = False, name = 'gsd')
 	model['lrd'] = tf.train.exponential_decay(lrate, model['gsd'], dstep, drate, staircase = False, name = 'lrd')
-	model['tdmses'] = optim(model['lrd']).minimize(model['dmses'] + model['dmsea'], global_step = model['gsd'], name = 'tdmses')
-	model['tdnlls'] = optim(model['lrd']).minimize(model['dnlls'] + model['dmsea'], global_step = model['gsd'], name = 'tdnlls')
+	model['reg'] = tf.contrib.layers.apply_regularization(reg(rfact), tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+	model['tdmses'] = optim(model['lrd']).minimize(model['dmses'] + model['dmsea'] + model['reg'], global_step = model['gsd'], name = 'tdmses')
+	model['tdnlls'] = optim(model['lrd']).minimize(model['dnlls'] + model['dmsea'] + model['reg'], global_step = model['gsd'], name = 'tdnlls')
 
 	return model

@@ -5,7 +5,7 @@ def create(config, scope = 'embedder', embedding = None):
 	model = dict()
 
 	with tf.name_scope(scope):
-		model['We'] = tf.Variable(tf.truncated_normal([dim_v, dim_i], stddev = 1.0 / dim_i), name = 'We') if embedding is None else tf.Variable(embedding, name = 'We')
+		model['We'] = tf.Variable(tf.truncated_normal([dim_v, dim_i], collections = [tf.GraphKeys.REGULARIZATION_LOSSES], stddev = 1.0 / dim_i), name = 'We') if embedding is None else tf.Variable(embedding, collections = [tf.GraphKeys.REGULARIZATION_LOSSES], name = 'We')
 		model['Be'] = tf.Variable(tf.truncated_normal([1, dim_i], stddev = 1.0 / dim_i), name = 'Be')
 
 	return model

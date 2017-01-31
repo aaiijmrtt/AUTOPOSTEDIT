@@ -21,7 +21,7 @@ def writetofile(filenamein, filenameout, vocab):
 			fileout.write('\n')
 
 def readindexfile(filename):
-	maximum, vocabulary, reverse = 0, dict(), dict()
+	maximum, vocabulary, reverse = 0, {'BLANK': 0}, {0: 'BLANK'}
 	for line in open(filename):
 		index, token = line.split('\t')
 		vocabulary[token.strip()] = int(index)

@@ -30,15 +30,15 @@ def feed(model, pretrainer, config, filename):
 					for idx in indexalign:
 						calign[-1][ii][idx + length - lengths[ii]] = 1. / len(indexalign)
 			alignlist.append(calign)
-		prelist.append(prepad([int(pre) for pre in preedit.split()] + [0], 0, length))
-		postlist.append(postpad([int(post) for post in postedit.split()] + [0], 0, length))
+		prelist.append(prepad([int(pre) for pre in preedit.split()] + [0], 0, length + 1))
+		postlist.append(postpad([int(post) for post in postedit.split()] + [0], 0, length + 1))
 		if len(prelist) == batch:
 			feeddict = dict()
 			feeddict.update({model['exi_%i' %i]: [prelist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
-			feeddict.update({model['eyi_%i' %i]: [prelist[ii][i + 1] for ii in xrange(batch)] for i in xrange(length - 1)})
+			feeddict.update({model['eyi_%i' %i]: [prelist[ii][i + 1] for ii in xrange(batch)] for i in xrange(length)})
 			feeddict.update({model['dyi_%i' %i]: [postlist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
 			feeddict.update({pretrainer['exi_%i' %i]: [prelist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
-			feeddict.update({pretrainer['eyi_%i' %i]: [prelist[ii][i + 1] for ii in xrange(batch)] for i in xrange(length - 1)})
+			feeddict.update({pretrainer['eyi_%i' %i]: [prelist[ii][i + 1] for ii in xrange(batch)] for i in xrange(length)})
 			if align:
 				feeddict.update({model['dai_%i' %i]: [[alignlist[ii][i][1][iii] for ii in xrange(batch)] for iii in xrange(length)] for i in xrange(length)})
 			yield feeddict
@@ -46,8 +46,8 @@ def feed(model, pretrainer, config, filename):
 
 def run(model, pretrainer, config, session, summary, filename, train):
 	iters, freq, time, saves, align, total, totalemss, totaldmss, totaldmsa = config.getint('global', 'iterations') if train else 1, config.getint('global', 'frequency'), config.getint('global', 'timesize'), config.get('global', 'output'), config.getboolean('global', 'align'), 0., 0., 0., 0.
-	if config.get('global', 'lfunc') == 'mse': es, te, ses, gse, ds, td, sds, gsd, ps, tp, sps, gsp = model['emses'], model['temses'], model['semses'], model['gse'], model['dmses'], model['tdmses'], model['sdmses'], model['gsd'], pretrainer['emses'], pretrainer['semses'], pretrainer['edmses'], pretrainer['gse']
-	if config.get('global', 'lfunc') == 'nll': es, te, ses, gse, ds, td, sds, gsd, ps, tp, sps, gsp  = model['enlls'], model['tenlls'], model['senlls'], model['gse'], model['dnlls'], model['tdnlls'], model['sdnlls'], model['gsd'], pretrainer['enlls'], pretrainer['senlls'], pretrainer['ednlls'], pretrainer['gse']
+	if config.get('global', 'lfunc') == 'mse': es, te, ses, gse, ds, td, sds, gsd, ps, tp, sps, gsp = model['emse'], model['temse'], model['semse'], model['gse'], model['dmses'], model['tdmses'], model['sdmses'], model['gsd'], pretrainer['emse'], pretrainer['temse'], pretrainer['semse'], pretrainer['gse']
+	if config.get('global', 'lfunc') == 'nll': es, te, ses, gse, ds, td, sds, gsd, ps, tp, sps, gsp  = model['enll'], model['tenll'], model['senll'], model['gse'], model['dnlls'], model['tdnlls'], model['sdnlls'], model['gsd'], pretrainer['enll'], pretrainer['tenll'], pretrainer['senll'], pretrainer['gse']
 	if config.get('global', 'lfunc') == 'mse' and align: da, sda = model['dmsea'], model['sdmsea']
 	if config.get('global', 'lfunc') == 'nll' and align: da, sda = model['dmsea'], model['sdmsea']
 
@@ -59,14 +59,14 @@ def run(model, pretrainer, config, session, summary, filename, train):
 				if (ii + 1) % freq == 0:
 					summs = session.run(ses, feed_dict = feeddict)
 					summary.add_summary(summs, gse.eval())
-					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', totalemss
+					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', valemss, totalemss
 			if train == 'pretrain3':
 				valemss, t = session.run([ps, tp], feed_dict = feeddict)
 				totalemss += valemss
 				if (ii + 1) % freq == 0:
 					summs = session.run(sps, feed_dict = feeddict)
 					summary.add_summary(summs, gsp.eval())
-					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', totalemss
+					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', valemss, totalemss
 			elif train == 'train':
 				if align:
 					valdmss, valdmsa, t = session.run([ds, da, td], feed_dict = feeddict)
@@ -76,14 +76,14 @@ def run(model, pretrainer, config, session, summary, filename, train):
 						summs, summa = session.run([sds, sda], feed_dict = feeddict)
 						summary.add_summary(summs, gsd.eval())
 						summary.add_summary(summa, gsd.eval())
-						print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', totaldmss, 'att', totaldmsa
+						print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', valdmss, totaldmss, 'att', valdmsa, totaldmsa
 				else:
 					val, t = session.run([ds, td], feed_dict = feeddict)
 					total += val
 					if (ii + 1) % freq == 0:
 						summ = session.run(sds, feed_dict = feeddict)
 						summary.add_summary(summ, gsd.eval())
-						print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss', total
+						print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss', val, total
 			elif train == 'dev' or train == 'test':
 				val = session.run([model['dp_%i' %iii] for iii in xrange(time)], feed_dict = feeddict)
 				exps, vals, outs = [feeddict[model['dyi_%i' %iii]] for iii in xrange(time)], [x[0] for x in val], [x[1] for x in val]
@@ -115,7 +115,7 @@ if __name__ == '__main__':
 	if mode[1] == 0: model = decoder.create(model, config['decoder'])
 	if mode[1] == 1: model = atcoder.create(model, config['atcoder'])
 	if mode[1] == 2: model = alcoder.create(model, config['alcoder'])
-	pretrainer = encoder.create(dict(), config['encoder'], embedder)
+	pretrainer = encoder.create(dict(), config['encoder'], embedding)
 
 	with tf.Session() as sess:
 		if sys.argv[3] == 'init':
@@ -123,7 +123,7 @@ if __name__ == '__main__':
 		else:
 			tf.train.Saver().restore(sess, config.get('global', 'load'))
 			if sys.argv[3] == 'retrain': sys.argv[3] = 'train'
-			elif sys.argv[3] == 'train': sess.run([decoder_['dW%s_%i' %(descriptor, depth)].assign(_decoder['eW%s_%i' %(descriptor, depth)]) for depth in xrange(config.getint('global', 'depth')) for descriptor in ['i', 'f', 'o', 'c', 'z']])
+			elif sys.argv[3] == 'train': sess.run([model['dW%s_%i' %(descriptor, depth)].assign(pretrainer['eW%s_%i' %(descriptor, depth)]) for depth in xrange(config.getint('global', 'depth')) for descriptor in ['i', 'f', 'o', 'c', 'z']])
 			summary = tf.train.SummaryWriter(config.get('global', 'logs'), sess.graph)
 			print datetime.datetime.now(), 'running model'
 			returnvalue = run(model, pretrainer, config, sess, summary, '%s/%s' %(config.get('global', 'data'), sys.argv[3]), sys.argv[3])

@@ -30,27 +30,27 @@ def feed(encoder1, encoder2, decoder, pretrainer, config, filename):
 					for idx in indexalign:
 						calign[-1][ii * length + idx + length - lengths[ii]] = 1. / len(indexalign)
 			alignlist.append(calign)
-		inilist.append(prepad([int(ini) for ini in iniedit.split()] + [0], 0, length))
-		prelist.append(prepad([int(pre) for pre in preedit.split()] + [0], 0, length))
-		postlist.append(postpad([int(post) for post in postedit.split()] + [0], 0, length))
+		inilist.append(prepad([int(ini) for ini in iniedit.split()] + [0], 0, length + 1))
+		prelist.append(prepad([int(pre) for pre in preedit.split()] + [0], 0, length + 1))
+		postlist.append(postpad([int(post) for post in postedit.split()] + [0], 0, length + 1))
 		if len(prelist) == batch:
 			feeddict = dict()
 			feeddict.update({encoder1['exi_%i' %i]: [inilist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
-			feeddict.update({encoder1['eyi_%i' %i]: [inilist[ii][i + 1] for ii in xrange(batch)] for i in xrange(length - 1)})
+			feeddict.update({encoder1['eyi_%i' %i]: [inilist[ii][i + 1] for ii in xrange(batch)] for i in xrange(length)})
 			feeddict.update({encoder2['exi_%i' %i]: [prelist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
-			feeddict.update({encoder2['eyi_%i' %i]: [prelist[ii][i + 1] for ii in xrange(batch)] for i in xrange(length - 1)})
+			feeddict.update({encoder2['eyi_%i' %i]: [prelist[ii][i + 1] for ii in xrange(batch)] for i in xrange(length)})
 			feeddict.update({decoder['dyi_%i' %i]: [postlist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
 			feeddict.update({pretrainer['exi_%i' %i]: [prelist[ii][i] for ii in xrange(batch)] for i in xrange(length)})
-			feeddict.update({pretrainer['eyi_%i' %i]: [prelist[ii][i + 1] for ii in xrange(batch)] for i in xrange(length - 1)})
+			feeddict.update({pretrainer['eyi_%i' %i]: [prelist[ii][i + 1] for ii in xrange(batch)] for i in xrange(length)})
 			if align:
 				feeddict.update({decoder['dai_%i' %i]: [[alignlist[ii][i][iii] for ii in xrange(batch)] for iii in xrange(2 * length)] for i in xrange(length)})
 			yield feeddict
 			inilist, prelist, postlist, alignlist = list(), list(), list(), list()
 
-def run(encoder1, encoder2, decoder, config, session, summary, filename, train):
+def run(encoder1, encoder2, decoder, pretrainer, config, session, summary, filename, train):
 	iters, freq, time, saves, align, total, totalemss, totaldmss, totaldmsa = config.getint('global', 'iterations') if train else 1, config.getint('global', 'frequency'), config.getint('global', 'timesize'), config.get('global', 'output'), config.getboolean('global', 'align'), 0., 0., 0., 0.
-	if config.get('global', 'lfunc') == 'mse': es1, te1, ses1, gse1, es2, te2, ses2, gse2, ds, td, sds, gsd, ps, tp, sps, gsp = encoder1['emses'], encoder1['temses'], encoder1['semses'], encoder1['gse'], encoder2['emses'], encoder2['temses'], encoder2['semses'], encoder2['gse'], decoder['dmses'], decoder['tdmses'], decoder['sdmses'], decoder['gsd'], pretrainer['emses'], pretrainer['temses'], pretrainer['semses'], pretrainer['gse']
-	if config.get('global', 'lfunc') == 'nll': es1, te1, ses1, gse1, es2, te2, ses2, gse2, ds, td, sds, gsd, ps, tp, sps, gsp = encoder1['enlls'], encoder1['tenlls'], encoder1['senlls'], encoder1['gse'], encoder2['enlls'], encoder2['tenlls'], encoder2['senlls'], encoder2['gse'], decoder['dnlls'], decoder['tdnlls'], decoder['sdnlls'], decoder['gsd'], pretrainer['emses'], pretrainer['tenlls'], pretrainer['senlls'], pretrainer['gse']
+	if config.get('global', 'lfunc') == 'mse': es1, te1, ses1, gse1, es2, te2, ses2, gse2, ds, td, sds, gsd, ps, tp, sps, gsp = encoder1['emse'], encoder1['temse'], encoder1['semse'], encoder1['gse'], encoder2['emse'], encoder2['temse'], encoder2['semse'], encoder2['gse'], decoder['dmses'], decoder['tdmses'], decoder['sdmses'], decoder['gsd'], pretrainer['emse'], pretrainer['temse'], pretrainer['semse'], pretrainer['gse']
+	if config.get('global', 'lfunc') == 'nll': es1, te1, ses1, gse1, es2, te2, ses2, gse2, ds, td, sds, gsd, ps, tp, sps, gsp = encoder1['enll'], encoder1['tenll'], encoder1['senll'], encoder1['gse'], encoder2['enll'], encoder2['tenll'], encoder2['senll'], encoder2['gse'], decoder['dnlls'], decoder['tdnlls'], decoder['sdnlls'], decoder['gsd'], pretrainer['enll'], pretrainer['tenll'], pretrainer['senll'], pretrainer['gse']
 	if config.get('global', 'lfunc') == 'mse' and align: da, sda = decoder['dmsea'], decoder['sdmsea']
 	if config.get('global', 'lfunc') == 'nll' and align: da, sda = decoder['dmsea'], decoder['sdmsea']
 
@@ -62,21 +62,21 @@ def run(encoder1, encoder2, decoder, config, session, summary, filename, train):
 				if (ii + 1) % freq == 0:
 					summs = session.run(ses1, feed_dict = feeddict)
 					summary.add_summary(summs, gse1.eval())
-					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', totalemss
+					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', valemss, totalemss
 			elif train == 'pretrain2':
 				valemss, t = session.run([es2, te2], feed_dict = feeddict)
 				totalemss += valemss
 				if (ii + 1) % freq == 0:
 					summs = session.run(ses2, feed_dict = feeddict)
 					summary.add_summary(summs, gse2.eval())
-					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', totalemss
+					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', valemss, totalemss
 			elif train == 'pretrain3':
 				valemss, t = session.run([ps, tp], feed_dict = feeddict)
 				totalemss += valemss
 				if (ii + 1) % freq == 0:
 					summs = session.run(sps, feed_dict = feeddict)
 					summary.add_summary(summs, gsp.eval())
-					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', totalemss
+					print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', valemss, totalemss
 			elif train == 'train':
 				if align:
 					valdmss, valdmsa, t = session.run([ds, da, td], feed_dict = feeddict)
@@ -86,14 +86,14 @@ def run(encoder1, encoder2, decoder, config, session, summary, filename, train):
 						summs, summa = session.run([sds, sda], feed_dict = feeddict)
 						summary.add_summary(summs, gsd.eval())
 						summary.add_summary(summa, gsd.eval())
-						print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', totaldmss, 'att', totaldmsa
+						print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss:', 'seq', valdmss, totaldmss, 'att', valdmsa, totaldmsa
 				else:
 					val, t = session.run([ds, td], feed_dict = feeddict)
 					total += val
 					if (ii + 1) % freq == 0:
 						summ = session.run(sds, feed_dict = feeddict)
 						summary.add_summary(summ, gsd.eval())
-						print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss', total
+						print datetime.datetime.now(), 'iteration', i, 'batch', ii, 'loss', val, total
 			elif train == 'dev' or train == 'test':
 				val = session.run([decoder['dp_%i' %iii] for iii in xrange(time)], feed_dict = feeddict)
 				exps, vals, outs = [feeddict[decoder['dyi_%i' %iii]] for iii in xrange(time)], [x[0] for x in val], [x[1] for x in val]
